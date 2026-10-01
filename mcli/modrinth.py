@@ -49,11 +49,16 @@ def _download_file(f,dest_dir):
             if c: out.write(c)
     return dest
 
-def install_mod(project, instance, mc=None, loader=None, dependencies=True, seen=None):
+def install_mod(project, instance, mc=None, loader=None, dependencies=True, seen=None, version_id=None):
     obj=get_instance(instance)
     mc=mc or obj["version"]
+    loader=loader or obj.get("loader")
     seen=seen or set()
-    v=choose_version(project,mc,loader)
+    v=_get(f"/version/{version_id}") if version_id else choose_version(project,mc,loader)
+    if str(v.get("project_id"))!=str(project) and version_id:
+        raise ModrinthError("Selected version belongs to a different project.")
+    if mc not in v.get("game_versions",[]) or (loader and loader not in v.get("loaders",[])):
+        raise ModrinthError("Selected mod version is incompatible with the instance.")
     if v["id"] in seen: return []
     seen.add(v["id"])
     installed=[]
@@ -149,12 +154,16 @@ def install_modpack(project, instance, version_id=None):
         shutil.rmtree(tmp,ignore_errors=True)
 
 
-def install_content(project, instance, project_type):
+def install_content(project, instance, project_type, version_id=None):
     if project_type not in ("resourcepack","shader"):
         raise ModrinthError(f"Unsupported content type: {project_type}")
     obj=get_instance(instance)
     mc=obj["version"]
-    v=choose_version(project,mc,None)
+    v=_get(f"/version/{version_id}") if version_id else choose_version(project,mc,None)
+    if version_id and str(v.get("project_id"))!=str(project):
+        raise ModrinthError("Selected version belongs to a different project.")
+    if mc not in v.get("game_versions",[]):
+        raise ModrinthError("Selected content version is incompatible with the instance.")
     f=_primary(v)
     folder="resourcepacks" if project_type=="resourcepack" else "shaderpacks"
     # Instances use their minecraft/ directory as the actual game directory.

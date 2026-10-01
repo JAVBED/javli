@@ -78,12 +78,17 @@ def _download(pid,file,dest_dir):
                 if chunk: out.write(chunk)
     return dest
 
-def install_mod(project,instance,mc=None,loader=None,dependencies=True,seen=None):
+def install_mod(project,instance,mc=None,loader=None,dependencies=True,seen=None,file_id=None):
     obj=get_instance(instance)
     mc=mc or obj["version"]
     loader=loader or obj.get("loader")
     seen=seen or set()
     pid,file=choose_file(project,mc,loader,6)
+    if file_id and int(file["id"])!=int(file_id):
+        rows=_files(pid,mc,loader)
+        file=next((row for row in rows if int(row["id"])==int(file_id)),None)
+        if not file:
+            raise CurseForgeError("Selected file is incompatible with the instance.")
     key=(pid,file["id"])
     if key in seen:return []
     seen.add(key)

@@ -27,3 +27,5 @@ Launch preferences can be supplied by a graphical frontend through the process e
 To install a local Modrinth pack into an existing compatible instance, run `javli modpack install path/to/pack.mrpack --instance survival`. Paths inside the archive are checked before extraction, and downloaded files with SHA-512 hashes are verified.
 
 For a specific Modrinth version, add `--version-id <id>`. CurseForge packs can be installed with `javli modpack install <project-id> --provider curseforge --instance survival`, optionally selecting a file with `--file-id <id>`. CurseForge requires an API key and some pack files may not expose automatic download URLs.
+
+Modrinth mods, resource packs, and shaders also accept `--version-id <id>` during install. CurseForge mod installs accept `--file-id <id>`. JAVLI checks the selected file against the instance's Minecraft version and loader before downloading it.

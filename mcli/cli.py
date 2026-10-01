@@ -252,7 +252,7 @@ def cmd_mods(args):
             from .curseforge import install_mod
         else:
             from .modrinth import install_mod
-        paths=install_mod(args.project,args.instance,args.minecraft,args.loader,not args.no_deps)
+        paths=install_mod(args.project,args.instance,args.minecraft,args.loader,not args.no_deps,version_id=args.version_id) if provider=="modrinth" else install_mod(args.project,args.instance,args.minecraft,args.loader,not args.no_deps,file_id=args.file_id)
         for p in paths: print("Installed",p.name)
     elif args.mods_action=="remove":
         from .modrinth import remove_mod
@@ -287,7 +287,7 @@ def cmd_content(args):
         for h in hits:
             print(f'{h["project_id"]:10} {h["title"]} — {h.get("description","")}')
     elif action=="install":
-        path=install_content(args.project,args.instance,project_type)
+        path=install_content(args.project,args.instance,project_type,args.version_id)
         print("Installed",path.name)
     elif action=="list":
         for p in list_content(args.instance,project_type):
@@ -351,14 +351,14 @@ def build_parser():
         pc=sub.add_parser(content_cmd)
         cs=pc.add_subparsers(dest="content_action",required=True)
         csearch=cs.add_parser("search"); csearch.add_argument("query"); csearch.add_argument("--minecraft"); csearch.add_argument("--limit",type=int,default=10); csearch.set_defaults(func=cmd_content)
-        cinstall=cs.add_parser("install"); cinstall.add_argument("project"); cinstall.add_argument("--instance",required=True); cinstall.set_defaults(func=cmd_content)
+        cinstall=cs.add_parser("install"); cinstall.add_argument("project"); cinstall.add_argument("--instance",required=True); cinstall.add_argument("--version-id"); cinstall.set_defaults(func=cmd_content)
         clist=cs.add_parser("list"); clist.add_argument("--instance",required=True); clist.set_defaults(func=cmd_content)
         crem=cs.add_parser("remove"); crem.add_argument("name"); crem.add_argument("--instance",required=True); crem.set_defaults(func=cmd_content)
 
     pm = sub.add_parser("mods")
     ms = pm.add_subparsers(dest="mods_action", required=True)
     mss=ms.add_parser("search"); mss.add_argument("query"); mss.add_argument("--minecraft"); mss.add_argument("--loader"); mss.add_argument("--provider",choices=["modrinth","curseforge"],default="modrinth"); mss.add_argument("--limit",type=int,default=10); mss.set_defaults(func=cmd_mods)
-    msi=ms.add_parser("install"); msi.add_argument("project"); msi.add_argument("--instance",required=True); msi.add_argument("--minecraft"); msi.add_argument("--loader"); msi.add_argument("--provider",choices=["modrinth","curseforge"],default="modrinth"); msi.add_argument("--no-deps",action="store_true"); msi.set_defaults(func=cmd_mods)
+    msi=ms.add_parser("install"); msi.add_argument("project"); msi.add_argument("--instance",required=True); msi.add_argument("--minecraft"); msi.add_argument("--loader"); msi.add_argument("--provider",choices=["modrinth","curseforge"],default="modrinth"); msi.add_argument("--version-id"); msi.add_argument("--file-id"); msi.add_argument("--no-deps",action="store_true"); msi.set_defaults(func=cmd_mods)
     msr=ms.add_parser("remove"); msr.add_argument("name"); msr.add_argument("--instance",required=True); msr.set_defaults(func=cmd_mods)
     msl=ms.add_parser("list"); msl.add_argument("--instance",required=True); msl.set_defaults(func=cmd_mods)
 
