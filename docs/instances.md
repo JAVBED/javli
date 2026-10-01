@@ -29,3 +29,6 @@ To install a local Modrinth pack into an existing compatible instance, run `javl
 For a specific Modrinth version, add `--version-id <id>`. CurseForge packs can be installed with `javli modpack install <project-id> --provider curseforge --instance survival`, optionally selecting a file with `--file-id <id>`. CurseForge requires an API key and some pack files may not expose automatic download URLs.
 
 Modrinth mods, resource packs, and shaders also accept `--version-id <id>` during install. CurseForge mod installs accept `--file-id <id>`. JAVLI checks the selected file against the instance's Minecraft version and loader before downloading it.
+# Safe launcher imports
+
+`javli instance import <folder> --name <name> --version <minecraft-version> --data-only` copies playable user data such as worlds, mods, resource packs, shaders, configs, and options into a new instance. It leaves the source untouched and excludes launcher profiles, account tokens, assets, and Minecraft binaries. Omit `--version` when the source launcher metadata already identifies the Minecraft version. JAVBED uses this mode when importing from other launchers.

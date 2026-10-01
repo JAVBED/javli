@@ -177,7 +177,7 @@ def cmd_instance(args):
         print(f'Name: {info["name"]}')
         print(f'Minecraft: {info.get("version") or "unknown"}')
         print(f'Loader: {info.get("loader") or "vanilla"}' + (f' {info.get("loader_version")}' if info.get("loader_version") else ""))
-        obj,info=import_instance(args.path,args.name,args.move)
+        obj,info=import_instance(args.path,args.name,args.move,args.version,args.data_only)
         print(f'Imported as {obj["name"]}: {obj["version"]}')
         print(obj["path"])
     elif args.instance_action == "launch":
@@ -397,6 +397,8 @@ def build_parser():
     iim = ins.add_parser("import")
     iim.add_argument("path")
     iim.add_argument("--name")
+    iim.add_argument("--version",help="Minecraft version when launcher metadata does not identify it")
+    iim.add_argument("--data-only",action="store_true",help="Copy user game data without launcher tokens or Minecraft binaries")
     mode=iim.add_mutually_exclusive_group()
     mode.add_argument("--copy",action="store_true",help="Copy the source instance (default)")
     mode.add_argument("--move",action="store_true",help="Move the source game directory into javli")
