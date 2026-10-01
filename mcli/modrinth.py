@@ -1,5 +1,6 @@
-import json, shutil, zipfile
-from pathlib import Path
+import hashlib, json, shutil, zipfile
+from pathlib import Path, PurePosixPath
+from urllib.parse import urlparse
 import requests
 from .instances import get as get_instance
 
@@ -84,23 +85,31 @@ def list_mods(instance):
     mods=Path(obj["path"])/"minecraft"/"mods"
     return sorted([p for p in mods.glob("*") if p.is_file()])
 
-def install_modpack(project, instance):
+def _safe_pack_path(value):
+    path=PurePosixPath(str(value).replace("\\","/"))
+    if path.is_absolute() or not path.parts or any(part in (".","..") for part in path.parts) or ":" in path.parts[0]:
+        raise ModrinthError(f"Unsafe modpack path: {value}")
+    return Path(*path.parts)
+
+def install_modpack_file(pack, instance):
     obj=get_instance(instance)
-    v=choose_version(project,obj["version"],None)
-    f=_primary(v)
-    tmp=Path(obj["path"])/".mcli-pack"
-    tmp.mkdir(parents=True,exist_ok=True)
-    pack=_download_file(f,tmp)
+    pack=Path(pack)
     if pack.suffix.lower()!=".mrpack":
-        raise ModrinthError("Selected Modrinth file is not an .mrpack.")
+        raise ModrinthError("Selected file is not an .mrpack.")
     game=Path(obj["path"])/"minecraft"
     with zipfile.ZipFile(pack) as z:
         index=json.loads(z.read("modrinth.index.json"))
+        dependencies=index.get("dependencies") or {}
+        if dependencies.get("minecraft") != obj["version"]:
+            raise ModrinthError("Modpack Minecraft version does not match the target instance.")
+        pack_loader=next((name.split("-")[0] for name in ("fabric-loader","quilt-loader","forge","neoforge") if name in dependencies),None)
+        if pack_loader and obj.get("loader")!=pack_loader:
+            raise ModrinthError(f"Modpack requires {pack_loader}; target instance uses {obj.get('loader') or 'vanilla'}.")
         # Overrides are copied into the game directory.
         for prefix in ("overrides/","client-overrides/"):
             for m in z.infolist():
                 if m.filename.startswith(prefix) and not m.is_dir():
-                    rel=m.filename[len(prefix):]
+                    rel=_safe_pack_path(m.filename[len(prefix):])
                     dest=game/rel; dest.parent.mkdir(parents=True,exist_ok=True)
                     with z.open(m) as src, dest.open("wb") as out: shutil.copyfileobj(src,out)
         for entry in index.get("files",[]):
@@ -108,13 +117,36 @@ def install_modpack(project, instance):
             if env=="unsupported": continue
             downloads=entry.get("downloads") or []
             if not downloads: continue
-            dest=game/entry["path"]; dest.parent.mkdir(parents=True,exist_ok=True)
-            r=requests.get(downloads[0],stream=True,timeout=90,headers={"User-Agent":UA}); r.raise_for_status()
-            with dest.open("wb") as out:
+            rel=_safe_pack_path(entry["path"])
+            url=downloads[0]
+            if urlparse(url).scheme!="https": raise ModrinthError("Modpack file URLs must use HTTPS.")
+            dest=game/rel; dest.parent.mkdir(parents=True,exist_ok=True)
+            temporary=dest.with_name(dest.name+".part")
+            digest=hashlib.sha512()
+            r=requests.get(url,stream=True,timeout=90,headers={"User-Agent":UA}); r.raise_for_status()
+            with temporary.open("wb") as out:
                 for c in r.iter_content(1024*1024):
-                    if c: out.write(c)
-    shutil.rmtree(tmp,ignore_errors=True)
+                    if c: out.write(c); digest.update(c)
+            expected=(entry.get("hashes") or {}).get("sha512")
+            if expected and digest.hexdigest().lower()!=expected.lower():
+                temporary.unlink(missing_ok=True)
+                raise ModrinthError(f"Checksum mismatch for {rel}")
+            temporary.replace(dest)
     return index
+
+def install_modpack(project, instance, version_id=None):
+    obj=get_instance(instance)
+    v=_get(f"/version/{version_id}") if version_id else choose_version(project,obj["version"],None)
+    if obj["version"] not in v.get("game_versions",[]):
+        raise ModrinthError("Selected modpack version is incompatible with the target instance.")
+    f=_primary(v)
+    tmp=Path(obj["path"])/".mcli-pack"
+    tmp.mkdir(parents=True,exist_ok=True)
+    pack=_download_file(f,tmp)
+    try:
+        return install_modpack_file(pack,instance)
+    finally:
+        shutil.rmtree(tmp,ignore_errors=True)
 
 
 def install_content(project, instance, project_type):

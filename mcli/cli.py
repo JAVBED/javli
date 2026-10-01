@@ -1,4 +1,5 @@
 import argparse, json, sys
+from pathlib import Path
 from .catalog import all_versions, resolve
 from .install import install
 
@@ -263,15 +264,19 @@ def cmd_mods(args):
         for p in list_mods(args.instance): print(p.name)
 
 def cmd_modpack(args):
-    from .modrinth import search, install_modpack
+    from .modrinth import search, install_modpack, install_modpack_file
     if args.modpack_action=="search":
         hits=search(args.query,"modpack",args.limit,args.minecraft,args.loader)
         for h in hits:
             print(f'{h["project_id"]:10} {h["title"]} — {h.get("description","")}')
     elif args.modpack_action=="install":
-        idx=install_modpack(args.project,args.instance)
-        print("Installed modpack:",idx.get("name","Modrinth pack"))
-        print("Minecraft:",idx.get("dependencies",{}).get("minecraft","?"))
+        if args.provider=="curseforge":
+            from .curseforge import install_modpack as install_curseforge_modpack
+            idx=install_curseforge_modpack(args.project,args.instance,args.file_id)
+        else:
+            idx=(install_modpack_file(args.project,args.instance) if args.project.lower().endswith(".mrpack") and Path(args.project).is_file() else install_modpack(args.project,args.instance,args.version_id))
+        print("Installed modpack:",idx.get("name","CurseForge pack" if args.provider=="curseforge" else "Modrinth pack"))
+        print("Minecraft:",(idx.get("minecraft") or {}).get("version", "?") if args.provider=="curseforge" else idx.get("dependencies",{}).get("minecraft","?"))
 
 def cmd_content(args):
     from .modrinth import search, install_content, list_content, remove_content
@@ -360,7 +365,7 @@ def build_parser():
     pmp = sub.add_parser("modpack")
     mps=pmp.add_subparsers(dest="modpack_action",required=True)
     mpss=mps.add_parser("search"); mpss.add_argument("query"); mpss.add_argument("--minecraft"); mpss.add_argument("--loader"); mpss.add_argument("--limit",type=int,default=10); mpss.set_defaults(func=cmd_modpack)
-    mpsi=mps.add_parser("install"); mpsi.add_argument("project"); mpsi.add_argument("--instance",required=True); mpsi.set_defaults(func=cmd_modpack)
+    mpsi=mps.add_parser("install"); mpsi.add_argument("project"); mpsi.add_argument("--instance",required=True); mpsi.add_argument("--version-id"); mpsi.add_argument("--file-id"); mpsi.add_argument("--provider",choices=["modrinth","curseforge"],default="modrinth"); mpsi.set_defaults(func=cmd_modpack)
 
 
     pld = sub.add_parser("loader")

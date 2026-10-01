@@ -1,4 +1,4 @@
-import os
+import json, os, shutil, zipfile
 from pathlib import Path
 try:
     from ._build_secrets import CURSEFORGE_API_KEY as BUILTIN_CURSEFORGE_API_KEY
@@ -97,3 +97,52 @@ def install_mod(project,instance,mc=None,loader=None,dependencies=True,seen=None
 
 def search_modpacks(query,limit=10,mc=None):
     return search(query,4471,limit,mc,None)
+
+def install_modpack_file(archive_path, instance):
+    from .modrinth import _safe_pack_path
+    obj=get_instance(instance)
+    game=Path(obj["path"])/"minecraft"
+    with zipfile.ZipFile(archive_path) as archive:
+        manifest=json.loads(archive.read("manifest.json"))
+        minecraft=manifest.get("minecraft") or {}
+        if minecraft.get("version")!=obj["version"]:
+            raise CurseForgeError("Modpack Minecraft version does not match the target instance.")
+        loaders=minecraft.get("modLoaders") or []
+        if loaders:
+            loader=str(loaders[0].get("id","")).split("-")[0].lower()
+            if loader and loader!=str(obj.get("loader") or "vanilla").lower():
+                raise CurseForgeError(f"Modpack requires {loader}; target instance uses {obj.get('loader') or 'vanilla'}.")
+        prefix=str(manifest.get("overrides") or "overrides").strip("/")+"/"
+        for member in archive.infolist():
+            if member.filename.startswith(prefix) and not member.is_dir():
+                target=game/_safe_pack_path(member.filename[len(prefix):])
+                target.parent.mkdir(parents=True,exist_ok=True)
+                with archive.open(member) as source, target.open("wb") as output:
+                    shutil.copyfileobj(source,output)
+        for entry in manifest.get("files",[]):
+            project_id=int(entry["projectID"])
+            file_id=int(entry["fileID"])
+            info=_get(f"/mods/{project_id}/files/{file_id}")
+            filename=_safe_pack_path(info["fileName"])
+            if len(filename.parts)!=1:
+                raise CurseForgeError("CurseForge mod filename contains directories.")
+            info["fileName"]=filename.name
+            _download(project_id,info,game/"mods")
+    return manifest
+
+def install_modpack(project, instance, file_id=None):
+    obj=get_instance(instance)
+    project_id=_project_id(project,4471)
+    if file_id:
+        file=_get(f"/mods/{project_id}/files/{int(file_id)}")
+    else:
+        _,file=choose_file(str(project_id),obj["version"],None,4471)
+    if obj["version"] not in file.get("gameVersions",[]):
+        raise CurseForgeError("Selected modpack file is incompatible with the target instance.")
+    temp=Path(obj["path"])/".mcli-curseforge-pack"
+    temp.mkdir(parents=True,exist_ok=True)
+    try:
+        archive=_download(project_id,file,temp)
+        return install_modpack_file(archive,instance)
+    finally:
+        shutil.rmtree(temp,ignore_errors=True)
