@@ -198,7 +198,18 @@ def _modern_args(meta, vars):
         game=[_subst(x,vars) for x in shlex.split(raw, posix=_os_name()!="windows")]
     return jvm,game
 
+def _launch_preferences():
+    values = {}
+    for key, minimum, maximum in (("MCLI_MEMORY_MB", 512, 65536), ("MCLI_RESOLUTION_WIDTH", 640, 7680), ("MCLI_RESOLUTION_HEIGHT", 480, 4320)):
+        raw = os.getenv(key)
+        if raw:
+            if not raw.isdecimal() or not minimum <= int(raw) <= maximum:
+                raise RuntimeError(f"{key} must be between {minimum} and {maximum}.")
+            values[key] = int(raw)
+    return values
+
 def launch(version, client_jar, meta, game_dir_override=None):
+    preferences = _launch_preferences()
     ensure()
     account=load_account()
     if not account:
@@ -243,10 +254,13 @@ def launch(version, client_jar, meta, game_dir_override=None):
         "classpath_separator":os.pathsep,
         "library_directory":str(LIBRARIES),
         "user_properties":"{}",
-        "resolution_width":"854",
-        "resolution_height":"480",
+        "resolution_width":str(preferences.get("MCLI_RESOLUTION_WIDTH", 854)),
+        "resolution_height":str(preferences.get("MCLI_RESOLUTION_HEIGHT", 480)),
     }
     jvm_args,game_args=_modern_args(meta,vars)
+    if "MCLI_MEMORY_MB" in preferences:
+        jvm_args = [arg for arg in jvm_args if not arg.startswith("-Xmx")]
+        jvm_args.insert(0, f'-Xmx{preferences["MCLI_MEMORY_MB"]}M')
     if not any(x.startswith("-Xmx") for x in jvm_args):
         era={"old_beta":"beta","old_alpha":"alpha"}.get(version.type, version.type)
         if era in ("preclassic","classic","indev","infdev"):
