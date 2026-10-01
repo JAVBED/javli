@@ -206,6 +206,17 @@ def _launch_preferences():
             if not raw.isdecimal() or not minimum <= int(raw) <= maximum:
                 raise RuntimeError(f"{key} must be between {minimum} and {maximum}.")
             values[key] = int(raw)
+    game_dir = os.getenv("MCLI_GAME_DIR")
+    if game_dir:
+        folder = Path(game_dir).expanduser()
+        if not folder.is_absolute():
+            raise RuntimeError("MCLI_GAME_DIR must be an absolute path.")
+        values["MCLI_GAME_DIR"] = str(folder)
+    fullscreen = os.getenv("MCLI_FULLSCREEN")
+    if fullscreen:
+        if fullscreen not in ("0", "1"):
+            raise RuntimeError("MCLI_FULLSCREEN must be 0 or 1.")
+        values["MCLI_FULLSCREEN"] = fullscreen == "1"
     return values
 
 def launch(version, client_jar, meta, game_dir_override=None):
@@ -227,7 +238,7 @@ def launch(version, client_jar, meta, game_dir_override=None):
 
     print("[3/5] Checking assets...", flush=True)
     asset_index=_download_assets(meta)
-    game_dir=Path(game_dir_override) if game_dir_override else GAME/version.id
+    game_dir=Path(game_dir_override) if game_dir_override else Path(preferences["MCLI_GAME_DIR"]) if "MCLI_GAME_DIR" in preferences else GAME/version.id
     game_dir.mkdir(parents=True,exist_ok=True)
 
     vars={
@@ -258,6 +269,8 @@ def launch(version, client_jar, meta, game_dir_override=None):
         "resolution_height":str(preferences.get("MCLI_RESOLUTION_HEIGHT", 480)),
     }
     jvm_args,game_args=_modern_args(meta,vars)
+    if preferences.get("MCLI_FULLSCREEN") and "--fullscreen" not in game_args:
+        game_args.append("--fullscreen")
     if "MCLI_MEMORY_MB" in preferences:
         jvm_args = [arg for arg in jvm_args if not arg.startswith("-Xmx")]
         jvm_args.insert(0, f'-Xmx{preferences["MCLI_MEMORY_MB"]}M')

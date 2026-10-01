@@ -15,6 +15,17 @@ class LaunchPreferenceTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "MCLI_MEMORY_MB"):
                 _launch_preferences()
 
+    def test_game_directory_and_fullscreen_preferences(self):
+        from pathlib import Path
+        directory = str(Path.cwd().resolve())
+        with patch.dict(os.environ, {"MCLI_GAME_DIR": directory, "MCLI_FULLSCREEN": "1"}):
+            values = _launch_preferences()
+        self.assertEqual(values["MCLI_GAME_DIR"], directory)
+        self.assertTrue(values["MCLI_FULLSCREEN"])
+        with patch.dict(os.environ, {"MCLI_GAME_DIR": "relative/path"}):
+            with self.assertRaisesRegex(RuntimeError, "MCLI_GAME_DIR"):
+                _launch_preferences()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -45,7 +45,9 @@ def choose_main(names, manifest_main=None):
     raise LegacyLaunchError("Could not determine this archive's client entry point.")
 
 def launch_legacy(version, jar, game_dir_override=None):
-    game=Path(game_dir_override) if game_dir_override else LEGACY/version.id
+    from .launcher import _launch_preferences
+    preferences = _launch_preferences()
+    game=Path(game_dir_override) if game_dir_override else Path(preferences["MCLI_GAME_DIR"]) if "MCLI_GAME_DIR" in preferences else LEGACY/version.id
     game.mkdir(parents=True,exist_ok=True)
     names,main=inspect_jar(jar)
     main=choose_main(names,main)
